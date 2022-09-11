@@ -5,7 +5,7 @@ t = 0
 tiles={[0]="1m","2m","3m","4m","5m","6m","7m","8m","9m",
 "1s","2s","3s","4s","5s","6s","7s","8s","9s",
 "1p","2p","3p","4p","5p","6p","7p","8p","9p",
-"e","s","w","n","r","g","w"}
+"e","s","w","n","r","g","wh"}
 tilespr={}
 for k,v in pairs(tiles) do
   tilespr[v]=k
@@ -14,7 +14,8 @@ wall={}
 nextTile=1
 selTile=14
 turn=1
-state="hand"
+state="play"
+doras=1
 players={
   {}, {}, {}, {}
 }
@@ -23,40 +24,52 @@ function _init()
   genWall()
   for j=1,#players do
     players[j].hand = {}
+    players[j].discards = {}
+    players[j].melds = {}
     players[j].points = 350
   end
+  -- draw and sort 13 tiles for each player
   for i=1,13*#players do
     add(players[((i-1)%4)+1].hand,wall[i])
   end
-  nextTile = 13*#players+1
   for j=1,#players do
     sortHand(players[j].hand, function(a,b) return tilespr[a] > tilespr[b] end)
   end
+  nextTile = 13*#players+1
 end
 
 function _draw()
   cls()
-  map(0,3,0,0,128,64)
+  local currentPlayer = (turn-1) % 4 + 1
 
   if state == "wall" then
-    cols=14
+    cols=16
+    rectfill(0,0,128,128,3)
     for i,tile in pairs(wall) do
-      local x = (i-1)%cols*8+8
-      local y =flr((i-1)/cols)*12+6
+      local x = (i-1)%cols*8
+      local y =flr((i-1)/cols)*9+7
       if i==nextTile then
         x = cos(t/60)*2 + x
         y = sin(t/60)*2 + y
         rectfill(x,y-1,x+8,y+8,12)
       end
+      if i < nextTile or i > #wall - 14 then
+        pal(7,15)
+      end
       spr(tilespr[tile],x,y)
+      pal(7,7)
     end
     print("wall", -1, -1, 1)
     print("wall", 0, 0, 9)
-  elseif state == "hand" then
+  elseif state == "play" then
+
+    map(0,3,0,0,128,64)
+    -- "deck"/shadow tiles are on
     line(13,128-5,128-13,128-5,1)
     line(12,128-4,128-12,128-4,1)
-    line(12,128-3,128-12,128-3,11)
+    line(12,128-3,128-12,128-3,4)
 
+    -- bottom right top walls
     for i=#wall,1,-1 do
       if i > nextTile then
         if i <= 34 then 
@@ -70,33 +83,103 @@ function _draw()
         end
       end
     end
+    -- left wall
     for i=103,#wall do
       if i > nextTile then
-        if i == #wall - 6 then
-          sprr(tilespr[wall[i]], 12, 24 + flr((i-102-1)/2)*5 - 5, 1)
+        -- dora indicators
+        if i % 2 == 0 and i >= #wall - 2 - doras * 2 and i < #wall - 2 then
+          local y =24 + flr((i-103)/2)*5 + flr((i - #wall - 2 - doras * 2)/2)*2 + doras * 2 
+          sprr(tilespr[wall[i]], 12, y, 1)
+          line(12+2, y+8, 12+6, y+8, 4) -- shadow
         else
+          -- due to draw order we have to push top tile "down" onto the table
+          -- on the left wall
           local offset = - ((i-1)%2) * 2 
           if i % 2 == 0 and i == nextTile + 1 then
             offset = 0
           end
-          spr(46, 14, 24 + flr((i-102-1)/2)*5 + offset) 
+          spr(46, 14, 24 + flr((i-103)/2)*5 + offset) 
         end
       end
     end
 
+    -- discards
+    for i=1,#players[1].discards do
+      spr(tilespr[players[1].discards[i]], 
+        64-6*3 - 1 + (i-1)%6 * 6,
+        64+6*3 + flr((i-1)/6) * 8)
+    end
+    for i=1,#players[2].discards do
+      sprr(tilespr[players[2].discards[i]], 
+        64+6*3 + flr((i-1)/6) * 8,
+        64+6*3 - 8 - (i-1)%6 * 6, 0)
+    end
+    for i=1,#players[3].discards do
+      spr(tilespr[players[3].discards[i]], 
+        64+ 6*3 - 4 - (i-1)%6 * 6,
+        64-6*3 - 8 - flr((i-1)/6) * 8, 1, 1, true, true)
+    end
+    for i=1,#players[4].discards do
+      sprr(tilespr[players[4].discards[i]], 
+        64-6*3 - 9 - flr((i-1)/6) * 8,
+        64-6*3 - 1 + (i-1)%6 * 6, 1)
+    end
+
+
+    -- drawn tile
+    local selFloat = sin(t/60)*1 - 1.5
+    if currentPlayer == 1 then
+      if selTile == 14 then
+        sprr(tilespr[wall[nextTile]],64-3,128-12-9 + selFloat, 0)
+        spr(59, 64 - 1, 128 - 12 - 9 - 5 + selFloat) -- hand 
+      else
+        sprr(tilespr[wall[nextTile]],64-3,128-12-9, 0)
+      end
+    end
+    -- draw hands and points
     for pi, p in pairs(players) do
-        if pi == 1 then
-          print(p.points, 64-5, 64+8, 10)
-        elseif pi == 2 then
-          print(p.points, 64+2, 64-2, 10)
-        elseif pi == 3 then
-          print(p.points, 64-5, 64-12, 10)
-        elseif pi == 4 then
-          print(p.points, 64- 13, 64-2, 10)
+      pal(7, 1)
+      pal(15, 1)
+      pal(5, 7)
+      if pi == 1 then
+        print(p.points, 64-5, 64+8, 10)
+        if currentPlayer == 1  then
+          line(64-5, 64+8+6, 64+5, 64+8+6, t % 60 > 30 and 9 or 10)
         end
+        spr(27, 64 - 16, 64 + 7)
+      elseif pi == 2 then
+        print(p.points, 64+2, 64-2, 10)
+        if currentPlayer == 2 then
+          line(64+8+6, 64-5, 64+8+6,64+5, t % 60 > 30 and 9 or 10)
+        end
+        sprr(28, 64 + 7, 64 + 7, 0)
+      elseif pi == 3 then
+        print(p.points, 64-5, 64-12, 10)
+        if currentPlayer == 3 then
+          line(64-5, 64-8-7, 64+5, 64-8-7, t % 60 > 30 and 9 or 10)
+        end
+        spr(29, 64 + 8, 64 - 15, 1, 1, true, true)
+      elseif pi == 4 then
+        print(p.points, 64- 13, 64-2, 10)
+        if currentPlayer== 4 then
+          line(64-8-7, 64-5, 64-8-7, 64+5, t % 60 > 30 and 9 or 10)
+        end
+        sprr(30, 64 - 16, 64 - 16, 1)
+      end
+      pal(7, 7)
+      pal(5, 5)
+      pal(15, 15)
       for i,tile in pairs(p.hand) do
         if pi == 1 then
-          spr(tilespr[tile],(i-1)*8+12,128-12)
+          local y = 128-12
+          local x = (i-1)*8+12
+          if i == selTile then
+            y += selFloat
+            spr(tilespr[tile], x, y )
+            spr(59, x + 2, y - 6) -- hand
+          else
+            spr(tilespr[tile],x,y)
+          end
         elseif pi == 2 then
           sprr(tilespr[tile],128-12,-(i-1)*8+128-20, 0)
         elseif pi == 3 then
@@ -106,9 +189,8 @@ function _draw()
         end
       end
     end
-    sprr(tilespr[wall[nextTile]],64-3,128-12-9, 0)
-    print("turn: " .. turn .. ", next: " .. nextTile, -1,-1, 1)
-    print("turn: " .. turn .. ", next: " .. nextTile, 0,0, 9)
+    -- print("turn: " .. turn .. ", next: " .. nextTile, -1,-1, 1)
+    -- print("turn: " .. turn .. ", next: " .. nextTile, 0,0, 9)
   end
 
   -- print("picojong", 128 - 32, 128 - 6, 1)
@@ -133,17 +215,46 @@ function sprr(spridx,dx,dy,dir)
   end
 end
 
+baseState = state
 function _update()
   if btn(5) then
-    state="wall"
+    state = "wall"
   else
-    state="hand"
+    state = baseState
   end
-  if btn(0) and nextTile < #wall then
+  if btnp(1) and selTile < 14 then
+    selTile+=1
+  elseif btnp(0) and selTile>1 then
+    selTile-=1
+  end
+  if state == "play" and btnp(4) then
+    -- discard
+    local currentPlayer = (turn-1) % 4 + 1
+    if currentPlayer == 1 then
+      if selTile < 14 then
+        add(players[1].discards, players[1].hand[selTile])
+        players[1].hand[selTile] = wall[nextTile]
+      else
+        add(players[1].discards, wall[nextTile])
+      end
+      sortHand(players[1].hand, function(a,b) return tilespr[a] > tilespr[b] end)
+    else
+      add(players[currentPlayer].discards, wall[nextTile])
+    end
+    
+    -- reset for next turn
+    turn += 1
     nextTile+=1
-  elseif btn(1) and nextTile>1 then
-    nextTile-=1
+    -- end game
+    if nextTile == #wall - 14 then
+      baseState = "end"
+    end
   end
+  -- if btn(2) and nextTile < #wall then
+  --   nextTile+=1
+  -- elseif btn(3) and nextTile>1 then
+  --   nextTile-=1
+  -- end
 end
 
 function genWall()
@@ -195,14 +306,14 @@ __gfx__
 07733f7f0777777f4233333333333333333333244233333333333333333333244255333333333333333355240777777f099999947444f0000777f00000000000
 073f333f0777777f4233333333333333333333244233333333333333333333240a22222222222222222222a00722888f09999994077f00000000000000000000
 007777f0007777704233333333333333333333244233333333333333333333240044444444444444444444000077777000444440000000000000000000000000
-00000000000000000444444444444444444444404111111111111111111111144111111111111111111111140000000000000000000000000000000000000000
-00000000000000004a11111111111111111111a44111111111111111111111144111111111111111111111140000000000000000000000000000000000000000
-00000000000000004111111111111111111111144111111111111111111111144111111111111111111111140000000000000000000000000000000000000000
-00000000000000004111111111111111111111144111111111111111111111144111111111111111111111140000000000000000000000000000000000000000
-00000000000000004111111111111111111111144111111111111111111111144111111111111111111111140000000000000000000000000000000000000000
-00000000000000004111111111111111111111144111111111111111111111144111111111111111111111140000000000000000000000000000000000000000
-00000000000000004111111111111111111111144111111111111111111111144a11111111111111111111a40000000000000000000000000000000000000000
-00000000000000004111111111111111111111144111111111111111111111140444444444444444444444400000000000000000000000000000000000000000
+00077000000d10000444444444444444444444404111111111111111111111144111111111111111111111140001111000111100000000000000000000000000
+0775575700d110004a11111111111111111111a44111111111111111111111144111111111111111111111140017777701777710000000000000000000000000
+006775750d1d10004111111111111111111111144111111111111111111111144111111111111111111111140177777717777771000000000000000000000000
+00007777dddd00004111111111111111111111144111111111111111111111144111111111111111111111141777d77717766771000000000000000000000000
+07700777ddd10dd041111111111111111111111441111111111111111111111441111111111111111111111417ddd77717716671000000000000000000000000
+05776777ddd1dd104111111111111111111111144111111111111111111111144111111111111111111111141dd1771017710000000000000000000000000000
+00577777ddddd1004111111111111111111111144111111111111111111111144a11111111111111111111a40001710001710000000000000000000000000000
+000577770ddd10004111111111111111111111144111111111111111111111140444444444444444444444400001100000100000000000000000000000000000
 __map__
 2b0102030405060708090a0b0c0d0e0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 101112131415161718191a1b1c1d1e1f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
