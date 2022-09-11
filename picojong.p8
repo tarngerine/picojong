@@ -222,10 +222,10 @@ function _update()
   else
     state = baseState
   end
-  if btnp(1) and selTile < 14 then
-    selTile+=1
-  elseif btnp(0) and selTile>1 then
-    selTile-=1
+  if btnp(1) then
+    selTile=(selTile - 1 + 1) % 14 + 1
+  elseif btnp(0) then
+    selTile=(selTile -1  -1) % 14 + 1
   end
   if state == "play" and btnp(4) then
     -- discard
