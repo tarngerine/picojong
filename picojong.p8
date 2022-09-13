@@ -19,8 +19,10 @@ doras=1
 players={
   {}, {}, {}, {}
 }
+cpuChoice=""
 
 function _init()
+  printh("new game", "log.txt", true)
   genWall()
   for j=1,#players do
     players[j].hand = {}
@@ -66,7 +68,6 @@ function _draw()
     print("wall", 0, 0, 9)
 
   elseif state == "play" then
-
     map(0,3,0,0,128,64)
     -- "deck"/shadow tiles are on
     line(13,128-5,128-13,128-5,1)
@@ -163,7 +164,12 @@ function _draw()
       pal(7, 7)
       pal(5, 5)
       pal(15, 15)
-      drawHands(pi, p, currentPlayer)
+      drawHands(pi, p, currentPlayer, true)
+    end
+
+    if (cpuChoice != "") then
+      print("" .. cpuChoice, -1, 128-6, 1)
+      print("" .. cpuChoice .. "", 0, 128-5, 7)
     end
   end
 
@@ -225,6 +231,7 @@ function sprr(spridx,dx,dy,dir)
 end
 
 baseState = state
+takeTurnDelay = 0
 function _update()
   if btn(5) then
     state = "wall"
@@ -236,10 +243,39 @@ function _update()
   elseif btnp(0) then
     selTile=(selTile -1  -1) % 14 + 1
   end
-  if state == "play" and btnp(4) then
-    -- discard
+
+  -- play loop
+  if state == "play" then
     local currentPlayer = (turn-1) % 4 + 1
-    if currentPlayer == 1 then
+    -- cpu discard
+    if currentPlayer != 1 then
+      takeTurnDelay += 1
+      if takeTurnDelay > 15 then
+        local discardIdx = decideDiscard(currentPlayer)
+        if (discardIdx < 14) then
+          -- discard the tile with the lowest use count
+          add(players[currentPlayer].discards, players[currentPlayer].hand[discardIdx])
+          players[currentPlayer].hand[discardIdx] = wall[nextTile]
+        else
+          -- discard the drawn tile
+          add(players[currentPlayer].discards, wall[nextTile])
+        end
+        
+        sortHand(players[currentPlayer].hand, function(a,b) return tilespr[a] > tilespr[b] end)
+        -- takeTurnDelay = 0
+        -- advance
+        turn += 1
+        nextTile+=1
+        -- end game
+        if nextTile == #wall - 14 then
+          baseState = "end"
+        end
+      end
+    end
+    -- press discard
+    if btnp(4) and currentPlayer == 1 then
+      local cpuDiscardIdx = decideDiscard(1)
+      cpuChoice = cpuDiscardIdx < 14 and players[1].hand[cpuDiscardIdx] or wall[nextTile]
       if selTile < 14 then
         add(players[1].discards, players[1].hand[selTile])
         players[1].hand[selTile] = wall[nextTile]
@@ -247,18 +283,19 @@ function _update()
         add(players[1].discards, wall[nextTile])
       end
       sortHand(players[1].hand, function(a,b) return tilespr[a] > tilespr[b] end)
-    else
-      add(players[currentPlayer].discards, wall[nextTile])
-    end
-    
-    -- reset for next turn
-    turn += 1
-    nextTile+=1
-    -- end game
-    if nextTile == #wall - 14 then
-      baseState = "end"
+      
+      -- advance
+      selTile = 14
+      turn += 1
+      nextTile+=1
+      -- end game
+      if nextTile == #wall - 14 then
+        baseState = "end"
+      end
     end
   end
+
+
   -- if btn(2) and nextTile < #wall then
   --   nextTile+=1
   -- elseif btn(3) and nextTile>1 then
@@ -289,6 +326,119 @@ function sortHand(a, cmp)
     j = j - 1
     end
   end
+end
+
+function decideDiscard(currentPlayer)
+  -- basic discard ai
+  -- make pseudo melds, every combination thats possible
+  -- then pick the tile that occurs the least in the pseudo melds
+  local melds = {}
+  local useCounts = {}
+  local hand = table.copy(players[currentPlayer].hand)
+  add(hand, wall[nextTile]) -- add wall tile as part of evaluation
+  for i=1,#hand do
+    useCounts[i] = 0
+  end
+  for i=1,#hand do
+    for j=i+1,#hand do
+      local tile1idx = tilespr[hand[i]]
+      local tile2idx = tilespr[hand[j]]
+      local isSameSuite = tile1idx < 27 and tile2idx < 27 and sub(hand[i], 2,2) == sub(hand[j], 2,2)
+
+      -- make a pseudomeld of 2 tiles if the tiles are ryanmen, kanchan, or penchan or the same tile
+      if tile1idx == tile2idx then
+        add(melds, {tile1idx, tile2idx})
+        useCounts[i] += 2
+        useCounts[j] += 2
+      elseif isSameSuite and tile1idx == tile2idx - 1 then
+        add(melds, {tile1idx, tile2idx})
+        useCounts[i] += 2
+        useCounts[j] += 2
+      elseif isSameSuite and tile1idx == tile2idx - 2 then
+        add(melds, {tile1idx, tile2idx})
+        useCounts[i] += 1
+        useCounts[j] += 1
+      end
+      
+      for k=j+1,#hand do
+        local tile3idx = tilespr[hand[k]]
+        isSameSuite = isSameSuite and tile3idx < 27  and sub(hand[i], 2,2) == sub(hand[k], 2,2)
+
+        -- make full 3 tile melds, either straight or triplet
+        -- add counter for each tile in the hand that is in the meld
+        local meld = {}
+        if tile1idx == tile2idx and tile2idx == tile3idx then
+          meld = {tile1idx, tile2idx, tile3idx}
+          useCounts[i] += 3
+          useCounts[j] += 3
+          useCounts[k] += 3
+        elseif isSameSuite and tile1idx == tile2idx - 1 and tile2idx == tile3idx - 1 then
+          meld = {tile1idx, tile2idx, tile3idx}
+          useCounts[i] += 3
+          useCounts[j] += 3
+          useCounts[k] += 3
+        end
+        if #meld > 0 then
+          add(melds, meld)
+        end
+      end
+    end
+  end
+  printh("", "log.txt")
+  printh("player" .. currentPlayer .. " hand: ", "log.txt")
+  local handStr = ""
+  for i=1,#hand do
+    if #hand[i] < 2 then handStr ..= " " end
+    handStr = handStr .. " " .. hand[i]
+  end
+  printh(handStr, "log.txt")
+  -- find the useCount index with the lowest count
+  local lowestCount = 999
+  local lowestCountIdx = 1
+  for i=1,#useCounts do
+    if useCounts[i] <= lowestCount and tilespr[hand[i]] > tilespr[hand[lowestCountIdx]] then -- prefer to discard tiles with higher tilespr (e.g. honors)
+      lowestCount = useCounts[i]
+      lowestCountIdx = i
+    end
+  end
+  -- printh("useCounts: ", "log.txt")
+  local useCountsStr = ""
+  for i, count in pairs(useCounts) do
+    if count < 10 then
+      useCountsStr = useCountsStr .. " "
+    end
+    useCountsStr = useCountsStr .. " " .. count
+  end
+  printh(useCountsStr, "log.txt")
+  local lowestCountStr = ""
+  for i=1, lowestCountIdx + 1 do
+  if i == lowestCountIdx then
+    lowestCountStr = lowestCountStr .. " " ..  " X"
+    else 
+    lowestCountStr = lowestCountStr .. "   "
+    end
+  end
+  printh(lowestCountStr, "log.txt")
+
+  printh("melds: ", "log.txt")
+  local meldsStr = ""
+  for meld in all(melds) do
+  if meld[3] != nil then
+    meldsStr = meldsStr .. tiles[meld[1]] .. "" .. tiles[meld[2]] .. "" .. tiles[meld[3]] .. " "
+    else
+    meldsStr = meldsStr .. tiles[meld[1]] .. "" ..tiles[meld[2]] .. " "
+    end
+  end
+  printh("  ".. meldsStr, "log.txt")
+  return lowestCountIdx
+end
+
+-- https://stackoverflow.com/questions/640642/how-do-you-copy-a-lua-table-by-value
+table = {}
+function table.copy(t)
+  local u = { }
+  for k, v in pairs(t) do u[k] = v end
+  return setmetatable(u, getmetatable(t))
 end
 __gfx__
 00777770007777700077777000777770007f55500077f77000777770007777700077777000777770007777700077777000777770007777700077777000777770
