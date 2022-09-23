@@ -17,7 +17,7 @@ hands = {
 shantens = {}
 function _init()
   printh("NEW RUN", "shantenlog.txt", true)
-  printh(stat(1) .. "\n\n", "shantenlog.txt")
+  printh(stat(0) .. "\n\n", "shantenlog.txt")
   for j=0,4 do
     if hands[j] == nil then
       hands[j] = {}
@@ -34,7 +34,7 @@ function _init()
   end
   printh("total calc time " .. time() .. "s", "shantenlog.txt")
   printh("total copy time " .. copyT .. "s", "shantenlog.txt")
-  printh(stat(1) .. "\n\n", "shantenlog.txt")
+  printh(stat(0) .. "\n\n", "shantenlog.txt")
 end
 function _update()
 end
@@ -116,6 +116,8 @@ function shanten_normal(hand)
   local atamaTSum = 0
   local mentsuTSum = 0
   local taatsuTSum = 0
+  local loopCt = 0
+  local maxTaatsu = 0
   while (table.len(states) > 0) do
     local currentState = states[currentStateKey]
     
@@ -124,12 +126,14 @@ function shanten_normal(hand)
     local atamaT = time()
     if currentState[2] == 0 then -- find a single pair
       for i=0, #tiles do
-        local removedPair = removePair(table.copy(currentState[1]), i)
-        if removedPair then
-          local removedKey = lookupToStr(removedPair)
-          if states[removedKey] == nil and processedStates[removedKey] == nil  then
-            -- printh("pr: " .. removedKey, "shantenlog.txt")
-            states[removedKey] = { removedPair, currentState[2] + 1, currentState[3], currentState[4] }
+        if currentState[1][i] >= 1 then
+          local removedPair = removePair(table.copy(currentState[1]), i)
+          if removedPair then
+            local removedKey = lookupToStr(removedPair)
+            if states[removedKey] == nil and processedStates[removedKey] == nil  then
+              -- printh("pr: " .. removedKey, "shantenlog.txt")
+              states[removedKey] = { removedPair, currentState[2] + 1, currentState[3], currentState[4] }
+            end
           end
         end
       end
@@ -139,20 +143,22 @@ function shanten_normal(hand)
     -- mentsus
     local mentsuT = time()
     for i=0, #tiles do
-      local removedTQ = removeMentsuTripletQuad(table.copy(currentState[1]), i)
-      if removedTQ then
-        local removedKey = lookupToStr(removedTQ)
-        if states[removedKey] == nil and processedStates[removedKey] == nil  then
-          -- printh("tq: " .. removedKey, "shantenlog.txt")
-          states[removedKey] = { removedTQ, currentState[2], currentState[3] + 1, currentState[4] }
+      if currentState[1][i] >= 1 then
+        local removedTQ = removeMentsuTripletQuad(table.copy(currentState[1]), i)
+        if removedTQ then
+          local removedKey = lookupToStr(removedTQ)
+          if states[removedKey] == nil and processedStates[removedKey] == nil  then
+            -- printh("tq: " .. removedKey, "shantenlog.txt")
+            states[removedKey] = { removedTQ, currentState[2], currentState[3] + 1, currentState[4] }
+          end
         end
-      end
-      local removedSequence = removeMentsuSequence(table.copy(currentState[1]), i)
-      if removedSequence then
-        local removedKey = lookupToStr(removedSequence)
-        if states[removedKey] == nil and processedStates[removedKey] == nil  then
-          -- printh("sq: " .. removedKey, "shantenlog.txt")
-          states[removedKey] = { removedSequence, currentState[2], currentState[3] + 1, currentState[4] }
+        local removedSequence = removeMentsuSequence(table.copy(currentState[1]), i)
+        if removedSequence then
+          local removedKey = lookupToStr(removedSequence)
+          if states[removedKey] == nil and processedStates[removedKey] == nil  then
+            -- printh("sq: " .. removedKey, "shantenlog.txt")
+            states[removedKey] = { removedSequence, currentState[2], currentState[3] + 1, currentState[4] }
+          end
         end
       end
     end
@@ -160,24 +166,30 @@ function shanten_normal(hand)
 
     -- taatsus
     local taatsuT = time()
-    for i=0, #tiles do
-      local removedToitsu = removeTaatsuToitsu(table.copy(currentState[1]), i)
-      if removedToitsu then
-        local removedKey = lookupToStr(removedToitsu)
-        if states[removedKey] == nil and processedStates[removedKey] == nil  then
-          -- printh("tt: " .. removedKey, "shantenlog.txt")
-          states[removedKey] = { removedToitsu, currentState[2], currentState[3], currentState[4] + 1 }
+
+    -- if (currentState[3] + currentState[4]  < 4) then
+      for i=0, #tiles do
+        if currentState[1][i] >= 1 then
+          local removedToitsu = removeTaatsuToitsu(table.copy(currentState[1]), i)
+          if removedToitsu then
+            local removedKey = lookupToStr(removedToitsu)
+            if states[removedKey] == nil and processedStates[removedKey] == nil  then
+              -- printh("tt: " .. removedKey, "shantenlog.txt")
+              states[removedKey] = { removedToitsu, currentState[2], currentState[3], currentState[4] + 1 }
+            end
+          end
+          local removedSequence = removeTaatsuSeq(table.copy(currentState[1]), i)
+          if removedSequence then
+            local removedKey = lookupToStr(removedSequence)
+            -- TODO: can't prune like this.... what if the key is the same but the mentsu, etc are different? 
+            if states[removedKey] == nil and processedStates[removedKey] == nil  then
+              -- printh("ts: " .. removedKey, "shantenlog.txt")
+              states[removedKey] = { removedSequence, currentState[2], currentState[3], currentState[4] + 1 }
+            end
+          end
         end
       end
-      local removedSequence = removeTaatsuSeq(table.copy(currentState[1]), i)
-      if removedSequence then
-        local removedKey = lookupToStr(removedSequence)
-        if states[removedKey] == nil and processedStates[removedKey] == nil  then
-          -- printh("ts: " .. removedKey, "shantenlog.txt")
-          states[removedKey] = { removedSequence, currentState[2], currentState[3], currentState[4] + 1 }
-        end
-      end
-    end
+    -- end
     taatsuTSum += time() - taatsuT
 
     -- remove state from stack since we are out of tiles to remove
@@ -196,14 +208,15 @@ function shanten_normal(hand)
       minShantenStateKey = currentStateKey
     end
 
+    maxTaatsu = max(maxTaatsu, currentState[4])
+
     -- set the next state as the new first state
     for k, v in pairs(states) do
       currentStateKey = k
       break
     end
-    -- printh("looped, " .. table.len(states) .. " states remaining", "shantenlog.txt")
+    loopCt += 1
   end
-  -- printh("minShanten"  .. minShantenStateKey, "shantenlog.txt")
   if minShantenStateKey != nil then
     printh("Shanten: " .. minShanten .. "\t" ..
       -- ""  .. lookupToStr(processedStates[minShantenStateKey][1]) .. "\n" .. 
@@ -211,40 +224,16 @@ function shanten_normal(hand)
       processedStates[minShantenStateKey][3] .. " mentsu\t" .. 
       processedStates[minShantenStateKey][4] .. " taatsu\t", "shantenlog.txt")
   end
+  printh("max taatsu" .. maxTaatsu, "shantenlog.txt")
   printh("calculation times:\tatama: " .. atamaTSum .. "s" ..
     "\t mentsu: " .. mentsuTSum .. "s" ..
     "\t taatsu: " .. taatsuTSum .. "s", "shantenlog.txt")
-    printh(stat(1), "shantenlog.txt")
+  printh(stat(0), "shantenlog.txt")
   printh("finished with " .. time() - t .. "s", "shantenlog.txt")
+  printh("total states processed " .. loopCt, "shantenlog.txt")
   printh("\n\n", "shantenlog.txt")
   return minShanten
 
-  -- -- recursively do the below
-  -- -- 1. remove an atama pair if any
-  -- -- 2. remove all completed melds (3 or 4 tiles), if any
-  -- -- 3. remove all possible protoruns/remaining pairs (2 tiles): penchan/kanchan/ryanmen/toitsu, if any
-  -- local minShanten = 8
-
-  -- -- for each pair
-  -- for i=0,#tiles do
-  --   if lookup[i] >= 2 then
-  --     -- code mutates handLookup, so make a copy for each run
-  --     local handCopy = table.copy(lookup)
-  --     handCopy[i] -= 2
-  --     local pair = 1
-  --     local mentsu = removeMentsu(handCopy)
-  --     local taatsu = removeTaatsu(handCopy)
-  --     minShanten = min(minShanten, calculateShanten(mentsu, taatsu, pair))
-  --   end
-  -- end
-  -- -- calculate shanten for no pairs
-  -- local handCopy = table.copy(lookup)
-  -- local pair = 0
-  -- local mentsu = removeMentsu(handCopy)
-  -- local taatsu = removeTaatsu(handCopy)
-  -- minShanten = min(minShanten, calculateShanten(mentsu, taatsu, pair))
-
-  -- return minShanten
 end
 
 function calculateShanten(mentsu, taatsu, atama)
