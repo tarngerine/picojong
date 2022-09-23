@@ -5,7 +5,7 @@ t = 0
 tiles={[0]="1m","2m","3m","4m","5m","6m","7m","8m","9m",
 "1s","2s","3s","4s","5s","6s","7s","8s","9s",
 "1p","2p","3p","4p","5p","6p","7p","8p","9p",
-"e","s","w","n","r","g","wh"}
+"ew","sw","ww","nw","rd","gd","wd"}
 tilespr={}
 for k,v in pairs(tiles) do
   tilespr[v]=k
@@ -328,6 +328,9 @@ function sortHand(a, cmp)
   end
 end
 
+-- todo: function that assembles potential hands, and calculates shanten (0 is a win)
+    -- todo: calculate potential winning hands points, factor that into discards
+-- todo: discard should weight potential future matches as well, looking at discards and total possibilities (e.g. 9m should be discarded ahead of 5m with equal amounts)
 function decideDiscard(currentPlayer)
   -- basic discard ai
   -- make pseudo melds, every combination thats possible
@@ -350,11 +353,11 @@ function decideDiscard(currentPlayer)
         add(melds, {tile1idx, tile2idx})
         useCounts[i] += 2
         useCounts[j] += 2
-      elseif isSameSuite and tile1idx == tile2idx - 1 then
+      elseif isSameSuite and abs(tile1idx - tile2idx) == 1 then
         add(melds, {tile1idx, tile2idx})
         useCounts[i] += 2
         useCounts[j] += 2
-      elseif isSameSuite and tile1idx == tile2idx - 2 then
+      elseif isSameSuite and abs(tile1idx - tile2idx) == 2 then
         add(melds, {tile1idx, tile2idx})
         useCounts[i] += 1
         useCounts[j] += 1
@@ -372,7 +375,7 @@ function decideDiscard(currentPlayer)
           useCounts[i] += 3
           useCounts[j] += 3
           useCounts[k] += 3
-        elseif isSameSuite and tile1idx == tile2idx - 1 and tile2idx == tile3idx - 1 then
+        elseif isSameSuite and abs(tile1idx - tile2idx) == 1 and abs(tile2idx - tile3idx) == 1 then
           meld = {tile1idx, tile2idx, tile3idx}
           useCounts[i] += 3
           useCounts[j] += 3
